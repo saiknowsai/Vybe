@@ -1,30 +1,28 @@
-import { Text, View, StyleSheet, Image } from "react-native";
-
-const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { useEffect } from 'react';
+import { useRouter } from 'expo-router';
+import { View, ActivityIndicator } from 'react-native';
+import { useUser } from '../contexts/UserContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function Index() {
-  console.log(EXPO_PUBLIC_BACKEND_URL, "EXPO_PUBLIC_BACKEND_URL");
+  const { profile } = useUser();
+  const { activeColors } = useTheme();
+  const router = useRouter();
+
+  useEffect(() => {
+    // Wait for profile to load (userId will be set after AsyncStorage loads)
+    if (profile.userId) {
+      if (profile.onboardingComplete) {
+        router.replace('/(tabs)/home');
+      } else {
+        router.replace('/onboarding');
+      }
+    }
+  }, [profile.userId, profile.onboardingComplete]);
 
   return (
-    <View style={styles.container}>
-      <Image
-        source={require("../assets/images/app-image.png")}
-        style={styles.image}
-      />
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: activeColors.background }}>
+      <ActivityIndicator size="large" color={activeColors.primary} />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0c0c0c",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  image: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "contain",
-  },
-});
