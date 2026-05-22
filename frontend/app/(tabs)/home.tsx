@@ -77,8 +77,26 @@ export default function HomeScreen() {
   const fetchEvents = useCallback(async (forceRefresh = false) => {
     if (forceRefresh) setRefreshing(true); else setLoading(true);
     setAiSource(null);
+
+    // Helper: hit the seeded DB endpoint (instant fallback)
+    const fetchFromDb = async (): Promise<Event[]> => {
+      try {
+        const res = await fetch(`${API_URL}/api/events?city=${encodeURIComponent(city)}&limit=30`);
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
+    };
+
     try {
-      // Primary path: AI live events (Claude with web search + 6h cache)
+      // Primary path: AI live events (Claude w/ 6h cache). Race against a 55s
+      // ceiling because the public proxy times out around ~60s. If AI is slow
+      // we show seeded fallback first; AI will continue and populate cache for
+      // the next visit / pull-to-refresh.
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 55000);
+
       const aiRes = await fetch(`${API_URL}/api/ai/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -88,21 +106,26 @@ export default function HomeScreen() {
           age_group: profile.ageGroup,
           force_refresh: forceRefresh,
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
+
       const aiData = await aiRes.json();
       const list: Event[] = Array.isArray(aiData?.events) ? aiData.events : [];
-      setAiSource(aiData?.source || null);
-      setEvents(list);
-    } catch {
-      // Final fallback: hit cached DB endpoint
-      try {
-        const res = await fetch(`${API_URL}/api/events?city=${encodeURIComponent(city)}&limit=30`);
-        const data = await res.json();
-        setEvents(Array.isArray(data) ? data : []);
+      if (list.length > 0) {
+        setAiSource(aiData?.source || null);
+        setEvents(list);
+      } else {
+        // Empty AI response — use DB seeded events
+        const dbList = await fetchFromDb();
+        setEvents(dbList);
         setAiSource('fallback');
-      } catch {
-        setEvents([]);
       }
+    } catch {
+      // Proxy timeout or network error — show seeded events instantly
+      const dbList = await fetchFromDb();
+      setEvents(dbList);
+      setAiSource('fallback');
     }
     setLoading(false);
     setRefreshing(false);
