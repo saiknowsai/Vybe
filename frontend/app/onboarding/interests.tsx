@@ -40,12 +40,17 @@ export default function InterestsScreen() {
       return;
     }
     setLoading(true);
-    await updateProfile({ interests: selected });
+
+    // Combine all profile updates into a single call to avoid stale-state overwrites
+    const username = profile.username || `user_${profile.userId.slice(-6)}`;
+    await updateProfile({
+      interests: selected,
+      username,
+      displayName: profile.displayName || username,
+    });
 
     // Register user profile in backend for friends discovery
     try {
-      const username = `user_${profile.userId.slice(-6)}`;
-      await updateProfile({ username, displayName: username });
       await fetch(`${API_URL}/api/user/profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

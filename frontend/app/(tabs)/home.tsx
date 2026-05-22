@@ -48,51 +48,73 @@ export default function HomeScreen() {
   const [mode, setMode] = useState<'discover' | 'book'>('discover');
   const [showCityPicker, setShowCityPicker] = useState(false);
   const [citySearch, setCitySearch] = useState('');
-  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSource, setAiSource] = useState<'ai_generated' | 'cached' | 'fallback' | null>(null);
 
   const city = profile.city || 'London';
 
-  const fetchEvents = useCallback(async (isRefreshing = false) => {
-    if (isRefreshing) setRefreshing(true); else setLoading(true);
+  // Client-side filtering for AI-fetched events
+  const applyFilters = useCallback((list: Event[]) => {
+    let filtered = list;
+    if (kidsMode) {
+      filtered = filtered.filter(e => ['All Ages', 'Family'].includes(e.ageSuitability || ''));
+    }
+    if (category !== 'All') {
+      filtered = filtered.filter(e => e.category === category);
+    }
+    if (budget !== 'any') {
+      const p = (e: Event) => Number(e.price ?? 0);
+      if (budget === 'free') filtered = filtered.filter(e => p(e) === 0);
+      else if (budget === 'under5') filtered = filtered.filter(e => p(e) <= 5);
+      else if (budget === 'under10') filtered = filtered.filter(e => p(e) <= 10);
+      else if (budget === 'under20') filtered = filtered.filter(e => p(e) <= 20);
+    }
+    if (mode === 'book') {
+      filtered = filtered.filter(e => e.ticketUrl);
+    }
+    return filtered;
+  }, [kidsMode, category, budget, mode]);
+
+  const fetchEvents = useCallback(async (forceRefresh = false) => {
+    if (forceRefresh) setRefreshing(true); else setLoading(true);
+    setAiSource(null);
     try {
-      let url = `${API_URL}/api/events?city=${encodeURIComponent(city)}&limit=30&kids_mode=${kidsMode}`;
-      if (category !== 'All') url += `&category=${category}`;
-      if (budget !== 'any') url += `&budget=${budget}`;
-      if (mode === 'book') url += `&has_tickets=true`;
-
-      const res = await fetch(url);
-      const data = await res.json();
-      let list: Event[] = Array.isArray(data) ? data : [];
-
-      // If city not in UK list and no results, trigger AI search
-      if (list.length === 0 && !UK_CITIES.includes(city)) {
-        setAiLoading(true);
-        const aiRes = await fetch(`${API_URL}/api/ai/events`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ city, interests: profile.interests, age_group: profile.ageGroup }),
-        });
-        const aiData = await aiRes.json();
-        list = aiData.events || [];
-        setAiLoading(false);
-      }
-
-      if (mode === 'book') {
-        list = list.filter(e => e.ticketUrl);
-      }
+      // Primary path: AI live events (Claude with web search + 6h cache)
+      const aiRes = await fetch(`${API_URL}/api/ai/events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          city,
+          interests: profile.interests,
+          age_group: profile.ageGroup,
+          force_refresh: forceRefresh,
+        }),
+      });
+      const aiData = await aiRes.json();
+      const list: Event[] = Array.isArray(aiData?.events) ? aiData.events : [];
+      setAiSource(aiData?.source || null);
       setEvents(list);
     } catch {
-      setEvents([]);
+      // Final fallback: hit cached DB endpoint
+      try {
+        const res = await fetch(`${API_URL}/api/events?city=${encodeURIComponent(city)}&limit=30`);
+        const data = await res.json();
+        setEvents(Array.isArray(data) ? data : []);
+        setAiSource('fallback');
+      } catch {
+        setEvents([]);
+      }
     }
     setLoading(false);
     setRefreshing(false);
-  }, [city, category, budget, mode, kidsMode, profile.interests, profile.ageGroup]);
+  }, [city, profile.interests, profile.ageGroup]);
 
   React.useEffect(() => { fetchEvents(); }, [fetchEvents]);
 
+  const displayEvents = applyFilters(events);
+
   const surpriseMe = () => {
-    if (events.length === 0) return;
-    const random = events[Math.floor(Math.random() * events.length)];
+    if (displayEvents.length === 0) return;
+    const random = displayEvents[Math.floor(Math.random() * displayEvents.length)];
     router.push(`/event/${random.id}`);
   };
 
@@ -109,7 +131,10 @@ export default function HomeScreen() {
             <Ionicons name="chevron-down" size={14} color={activeColors.textMuted} />
           </TouchableOpacity>
         </View>
-        <Text style={[styles.appName, { color: activeColors.primary }]}>NearbyEvents</Text>
+        <View style={styles.headerCenter}>
+          <Text style={[styles.appName, { color: activeColors.primary }]}>Vybe</Text>
+          <Text style={[styles.tagline, { color: activeColors.textMuted }]}>Find your vybe 🎯</Text>
+        </View>
         <View style={styles.headerRight}>
           {kidsMode && <Text style={styles.kidsTag}>KIDS</Text>}
         </View>
@@ -153,7 +178,7 @@ export default function HomeScreen() {
         <TouchableOpacity
           testID="surprise-me-btn"
           onPress={surpriseMe}
-          disabled={events.length === 0}
+          disabled={displayEvents.length === 0}
           style={[styles.surpriseBtn, { backgroundColor: activeColors.secondary, borderRadius: activeRadius.full }]}
         >
           <Text style={[styles.surpriseBtnText, { color: activeColors.textMain, fontSize: kidsMode ? 18 : 15 }]}>
@@ -161,27 +186,43 @@ export default function HomeScreen() {
           </Text>
         </TouchableOpacity>
         <Text style={[styles.eventCount, { color: activeColors.textMuted }]}>
-          {events.length} events
+          {displayEvents.length} events{aiSource === 'cached' ? ' · cached' : aiSource === 'ai_generated' ? ' · live ✨' : ''}
         </Text>
       </View>
 
-      {/* AI Loading indicator */}
-      {aiLoading && (
-        <View style={[styles.aiLoading, { backgroundColor: activeColors.surfaceHighlight }]}>
-          <ActivityIndicator size="small" color={activeColors.primary} />
-          <Text style={[styles.aiText, { color: activeColors.textMuted }]}>
-            Finding events in {city} with AI...
-          </Text>
-        </View>
-      )}
-
       {/* Events Feed */}
       {loading ? (
-        <ActivityIndicator style={{ flex: 1 }} size="large" color={activeColors.primary} />
+        <ScrollView
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.aiBanner, { backgroundColor: activeColors.surfaceHighlight, borderRadius: activeRadius.md }]}>
+            <ActivityIndicator size="small" color={activeColors.primary} />
+            <Text style={[styles.aiBannerText, { color: activeColors.textMain }]} numberOfLines={1}>
+              Finding your vybe in {city}… 🎯
+            </Text>
+          </View>
+          {[0, 1, 2, 3].map(i => (
+            <View
+              key={i}
+              style={[styles.skeleton, { backgroundColor: activeColors.surface, borderRadius: activeRadius.lg, borderColor: activeColors.border }]}
+            >
+              <View style={[styles.skelImg, { backgroundColor: activeColors.surfaceHighlight }]} />
+              <View style={styles.skelBody}>
+                <View style={[styles.skelLine, { backgroundColor: activeColors.surfaceHighlight, width: '80%' }]} />
+                <View style={[styles.skelLine, { backgroundColor: activeColors.surfaceHighlight, width: '60%', height: 10 }]} />
+                <View style={styles.skelRow}>
+                  <View style={[styles.skelChip, { backgroundColor: activeColors.surfaceHighlight }]} />
+                  <View style={[styles.skelChip, { backgroundColor: activeColors.surfaceHighlight, width: 80 }]} />
+                </View>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
       ) : (
         <FlatList
           testID="events-list"
-          data={events}
+          data={displayEvents}
           keyExtractor={item => item.id}
           renderItem={({ item }) => (
             <EventCard
@@ -203,7 +244,7 @@ export default function HomeScreen() {
             <EmptyState
               emoji={kidsMode ? '🎈' : '🔍'}
               title={kidsMode ? "No kid-friendly events found" : "No events found"}
-              subtitle={`Try changing filters or search in another city`}
+              subtitle={`Try changing filters or pull down to refresh`}
               testID="no-events"
             />
           }
@@ -285,6 +326,14 @@ const styles = StyleSheet.create({
   eventCount: { fontSize: 13 },
   aiLoading: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, padding: 10, borderRadius: 8, gap: 8, marginBottom: 8 },
   aiText: { fontSize: 13 },
+  aiBanner: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, marginBottom: 12 },
+  aiBannerText: { fontSize: 14, fontWeight: '700', flex: 1 },
+  skeleton: { borderWidth: 1, overflow: 'hidden', marginBottom: 12 },
+  skelImg: { width: '100%', height: 140 },
+  skelBody: { padding: 14, gap: 8 },
+  skelLine: { height: 14, borderRadius: 4 },
+  skelRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  skelChip: { width: 60, height: 20, borderRadius: 10 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '70%' },
   modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },

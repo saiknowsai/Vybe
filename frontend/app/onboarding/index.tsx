@@ -61,7 +61,7 @@ export default function OnboardingWelcome() {
             <View style={[styles.iconCircle, { backgroundColor: activeColors.primary }]}>
               <Ionicons name="location" size={48} color="#fff" />
             </View>
-            <Text style={[styles.title, { color: activeColors.textMain }]}>NearbyEvents</Text>
+            <Text style={[styles.title, { color: activeColors.textMain }]}>Vybe</Text>
             <Text style={[styles.subtitle, { color: activeColors.textMuted }]}>
               Discover amazing events happening near you
             </Text>

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "NearbyEvents",
-    "slug": "nearbyevents",
+    "name": "Vybe",
+    "slug": "vybe",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

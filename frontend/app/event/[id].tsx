@@ -225,7 +225,7 @@ export default function EventDetailScreen() {
     if (!event) return;
     await Share.share({
       title: event.name,
-      message: `Check out ${event.name} on ${formatDate(event.date)} at ${event.venue}! Discover it on NearbyEvents.`,
+      message: `Check out ${event.name} on ${formatDate(event.date)} at ${event.venue}! Find your vybe 🎯`,
     });
   };
 

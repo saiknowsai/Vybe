@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface GoingEvent {
@@ -49,16 +49,26 @@ const UserContext = createContext<UserContextType>({} as UserContextType);
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
+  // Ref always points to the latest profile, prevents stale closure issues
+  // when multiple updateProfile calls happen back-to-back
+  const profileRef = useRef<UserProfile>(DEFAULT_PROFILE);
+
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
   useEffect(() => {
     (async () => {
       const saved = await AsyncStorage.getItem('userProfile');
       if (saved) {
-        setProfile(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        profileRef.current = parsed;
+        setProfile(parsed);
       } else {
         // Generate a unique user ID on first launch
         const userId = `user_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         const initial = { ...DEFAULT_PROFILE, userId };
+        profileRef.current = initial;
         setProfile(initial);
         await AsyncStorage.setItem('userProfile', JSON.stringify(initial));
       }
@@ -66,23 +76,26 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const saveProfile = async (updated: UserProfile) => {
+    profileRef.current = updated;
     setProfile(updated);
     await AsyncStorage.setItem('userProfile', JSON.stringify(updated));
   };
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
-    const updated = { ...profile, ...updates };
+    const updated = { ...profileRef.current, ...updates };
     await saveProfile(updated);
   };
 
   const markGoing = async (eventId: string, privacy: 'public' | 'private') => {
-    const filtered = profile.goingEvents.filter(g => g.eventId !== eventId);
-    const updated = { ...profile, goingEvents: [...filtered, { eventId, privacy, markedAt: new Date().toISOString() }] };
+    const current = profileRef.current;
+    const filtered = current.goingEvents.filter(g => g.eventId !== eventId);
+    const updated = { ...current, goingEvents: [...filtered, { eventId, privacy, markedAt: new Date().toISOString() }] };
     await saveProfile(updated);
   };
 
   const removeGoing = async (eventId: string) => {
-    const updated = { ...profile, goingEvents: profile.goingEvents.filter(g => g.eventId !== eventId) };
+    const current = profileRef.current;
+    const updated = { ...current, goingEvents: current.goingEvents.filter(g => g.eventId !== eventId) };
     await saveProfile(updated);
   };
 

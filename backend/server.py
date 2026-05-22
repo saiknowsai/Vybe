@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Any, Annotated
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from bson import ObjectId
 import json
 
@@ -19,7 +19,7 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-app = FastAPI(title="NearbyEvents API")
+app = FastAPI(title="Vybe API")
 api_router = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO)
@@ -787,9 +787,11 @@ async def startup():
     await db.events.create_index("city")
     await db.events.create_index("category")
     await db.events.create_index("id", unique=True)
+    await db.events.create_index("date")
     await db.users.create_index("username", unique=True, sparse=True)
     await db.friend_requests.create_index([("from_user_id", 1), ("to_username", 1)])
     await db.going_events.create_index([("user_id", 1), ("event_id", 1)])
+    await db.ai_cache.create_index("city", unique=True)
 
 
 # ─── Events Routes ────────────────────────────────────────────────────────────
@@ -829,7 +831,7 @@ async def get_events(
         ]
 
     skip = (page - 1) * limit
-    cursor = db.events.find(query).skip(skip).limit(limit)
+    cursor = db.events.find(query).sort("date", 1).skip(skip).limit(limit)
     events = await cursor.to_list(length=limit)
     return [clean(e) for e in events]
 
@@ -862,102 +864,171 @@ async def ai_search_events(body: dict):
     city = body.get("city", "London")
     interests = body.get("interests", [])
     age_group = body.get("age_group", "adult")
+    force = body.get("force_refresh", False)
 
-    # Check if we already have recent AI events for this city
-    existing = await db.events.count_documents({"city": city})
-    if existing >= 3:
-        cursor = db.events.find({"city": city}).limit(20)
-        events = await cursor.to_list(length=20)
-        return {"events": [clean(e) for e in events], "source": "cached"}
+    now = datetime.now(timezone.utc)
 
+    # Cache check — skip regeneration if under 3 hours old
+    if not force:
+        cache = await db.ai_cache.find_one({"city": city})
+        if cache and cache.get("generatedAt"):
+            try:
+                gen_time = datetime.fromisoformat(cache["generatedAt"].replace("Z", "+00:00"))
+                if (now - gen_time).total_seconds() < 21600:  # 6 hours
+                    cursor = db.events.find(
+                        {"city": {"$regex": f"^{city}$", "$options": "i"}}
+                    ).sort("date", 1).limit(30)
+                    events = await cursor.to_list(length=30)
+                    return {"events": [clean(e) for e in events], "source": "cached"}
+            except Exception:
+                pass
+
+    # Generate fresh AI events
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         import json as json_lib
 
         api_key = os.environ.get("EMERGENT_LLM_KEY", "")
+        today_str = now.strftime("%A, %B %d, %Y")
+        end_date = (now + timedelta(days=28)).strftime("%B %d, %Y")
+        today_iso = now.strftime("%Y-%m-%d")
+        end_iso = (now + timedelta(days=28)).strftime("%Y-%m-%d")
+        updated_ts = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        interests_str = ", ".join(interests) if interests else "Music, Food, Arts, Outdoors"
+
         chat = LlmChat(
             api_key=api_key,
-            session_id=f"events_{city}_{new_id()}",
+            session_id=f"vybe_{city}_{new_id()}",
             system_message=(
-                "You are an expert local events researcher. Generate realistic, accurate upcoming events "
-                "for cities worldwide. Always return valid JSON with real venue names and accurate coordinates. "
-                "Use your knowledge of real events, venues, and cultural happenings in the specified city."
+                "You are a knowledgeable local events expert. You know about concerts, festivals, "
+                "markets, exhibitions, comedy shows, sports fixtures, and cultural events in cities "
+                "worldwide. Generate realistic, specific, upcoming events with real venue names, "
+                "accurate addresses and coordinates, and detailed descriptions."
             )
-        ).with_model("anthropic", "claude-4-sonnet-20250514")
+        ).with_model("anthropic", "claude-sonnet-4-6")
 
-        interests_str = ", ".join(interests) if interests else "general"
-        prompt = f"""Generate 8 upcoming local events for {city} in 2026.
-Interests: {interests_str}. Age group: {age_group}.
+        prompt = f"""Today is {today_str}. Generate exactly 10 upcoming events in {city} happening between {today_iso} and {end_iso}.
 
-Return ONLY a JSON array (no markdown, no explanation) with this exact structure for each event:
-[{{
-  "id": "evt_unique_id",
-  "name": "Event Name",
-  "description": "Rich 2-sentence description",
-  "city": "{city}",
-  "venue": "Actual Venue Name",
-  "address": "Full Address",
-  "lat": 00.0000,
-  "lng": 00.0000,
-  "date": "2026-MM-DD",
-  "endDate": "2026-MM-DD",
-  "time": "HH:MM",
-  "category": "Music|Food|Arts|Family|Sports|Comedy|Markets|Outdoors",
-  "price": 0,
-  "priceLabel": "Free or £X",
-  "imageUrl": "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=800&q=80",
-  "isVerified": true,
-  "isTrending": false,
-  "isFeatured": false,
-  "ageSuitability": "All Ages|Family|16+|18+",
-  "isOutdoor": true,
-  "ticketUrl": null,
-  "ticketProvider": null,
-  "isSoldOut": false,
-  "isLimitedSpaces": false,
-  "attendeeCount": 500,
-  "averageRating": 4.5,
-  "reviewCount": 0,
-  "food": {{"onSite": ["Food option 1"], "nearby": ["Restaurant (0.5mi)"]}},
-  "parking": {{"carParks": ["Car park name (£X)"], "publicTransport": ["Transit option"]}},
-  "accessibility": {{"wheelchair": true, "hearingLoop": false, "quietSpaces": false, "bsl": false, "assistance": true, "details": "Accessibility info"}},
-  "ageGuide": {{"suitableFor": "All Ages", "restrictions": "None", "sections": ["Main area"]}},
-  "tags": ["tag1", "tag2"],
-  "lastUpdated": "2026-02-01T00:00:00Z",
-  "source": "ai_generated"
-}}]
+USER CONTEXT: Interests = {interests_str}. Age group = {age_group}.
 
-Use real venues in {city}. Use appropriate image URLs from Unsplash for the category."""
+REQUIREMENTS:
+- Use REAL venue names that exist in {city} (arenas, theatres, galleries, parks, markets)
+- Dates MUST be between {today_iso} and {end_iso}
+- Include a variety: concerts, food markets, arts, family events, comedy, sports, outdoor
+- Mix of FREE (price: 0) and PAID events
+- Rich 2-3 sentence descriptions specific to that event
+- Accurate lat/lng coordinates for venues in {city}
 
-        user_msg = UserMessage(text=prompt)
-        response = await chat.send_message(user_msg)
+Return ONLY a valid JSON array, no markdown, no explanation. Use this exact structure:
 
-        # Parse JSON from response
+[
+  {{
+    "id": "ai_{city.lower().replace(' ', '_')}_1",
+    "name": "Real Event Name",
+    "description": "Engaging 2-3 sentence description of what to expect at this event.",
+    "city": "{city}",
+    "venue": "Real Venue Name",
+    "address": "Full address, {city}",
+    "lat": 51.5074,
+    "lng": -0.1278,
+    "date": "{today_iso}",
+    "endDate": "{today_iso}",
+    "time": "19:00",
+    "category": "Music",
+    "price": 15,
+    "priceLabel": "£15",
+    "imageUrl": "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=800&q=80",
+    "isVerified": true,
+    "isTrending": false,
+    "isFeatured": false,
+    "ageSuitability": "All Ages",
+    "isOutdoor": false,
+    "ticketUrl": "https://www.eventbrite.co.uk",
+    "ticketProvider": "Eventbrite",
+    "isSoldOut": false,
+    "isLimitedSpaces": false,
+    "attendeeCount": 500,
+    "averageRating": 0.0,
+    "reviewCount": 0,
+    "food": {{"onSite": ["Bar & snacks"], "nearby": ["Local restaurant (0.3mi)"]}},
+    "parking": {{"carParks": ["Nearest car park (£8)"], "publicTransport": ["Bus / Metro info"]}},
+    "accessibility": {{"wheelchair": true, "hearingLoop": false, "quietSpaces": false, "bsl": false, "assistance": true, "details": "Please contact venue for accessibility needs."}},
+    "ageGuide": {{"suitableFor": "All Ages", "restrictions": "None", "sections": ["Main area"]}},
+    "tags": ["event", "{city.lower()}"],
+    "lastUpdated": "{updated_ts}",
+    "source": "ai_generated"
+  }}
+]
+
+Category-appropriate image URLs:
+- Music: https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=800&q=80
+- Food: https://images.unsplash.com/photo-1551883709-2516220df0bc?w=800&q=80
+- Arts: https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&q=80
+- Family: https://images.unsplash.com/photo-1533587851505-d119e13fa0d7?w=800&q=80
+- Sports: https://images.unsplash.com/photo-1571008887538-b36bb32f4571?w=800&q=80
+- Comedy: https://images.unsplash.com/photo-1527224857830-43a7acc85260?w=800&q=80
+- Markets: https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800&q=80
+- Outdoors: https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&q=80"""
+
+        response = await chat.send_message(UserMessage(text=prompt))
         text = response.strip()
-        if "```" in text:
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
+
+        # Strip markdown fences if present
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0].strip()
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0].strip()
 
         ai_events = json_lib.loads(text)
+        if not isinstance(ai_events, list):
+            raise ValueError("Response is not a list")
 
-        # Save to DB
-        for event in ai_events:
-            event["id"] = event.get("id", f"ai_{new_id()}")
-            existing_check = await db.events.find_one({"id": event["id"]})
-            if not existing_check:
-                await db.events.insert_one(event)
+        # Delete old AI events for this city, keep seeded ones as fallback
+        await db.events.delete_many({
+            "city": {"$regex": f"^{city}$", "$options": "i"},
+            "source": "ai_generated"
+        })
 
-        cursor = db.events.find({"city": city}).limit(20)
-        events = await cursor.to_list(length=20)
-        return {"events": [clean(e) for e in events], "source": "ai_generated"}
+        # Insert new AI events
+        saved = 0
+        for i, event in enumerate(ai_events):
+            event["id"] = f"ai_{city.lower().replace(' ', '_')}_{i+1}_{new_id()[:6]}"
+            event["city"] = city
+            event["source"] = "ai_generated"
+            try:
+                await db.events.insert_one(dict(event))
+                saved += 1
+            except Exception:
+                pass
+
+        logger.info(f"AI generated {saved} events for {city}")
+
+        # Update cache
+        await db.ai_cache.replace_one(
+            {"city": city},
+            {"city": city, "generatedAt": now.isoformat(), "count": saved},
+            upsert=True
+        )
+
+        # Return all events sorted by date (AI first since they're near-term)
+        cursor = db.events.find(
+            {"city": {"$regex": f"^{city}$", "$options": "i"}}
+        ).sort("date", 1).limit(30)
+        events = await cursor.to_list(length=30)
+        return {"events": [clean(e) for e in events], "source": "ai_generated", "count": saved}
 
     except Exception as e:
-        logger.error(f"AI events error: {e}")
-        # Fallback: return London events
-        cursor = db.events.find({"city": "London"}).limit(10)
-        events = await cursor.to_list(length=10)
-        return {"events": [clean(e) for e in events], "source": "fallback"}
+        logger.error(f"AI events error for {city}: {e}")
+        # Fallback: return seeded events for this city
+        cursor = db.events.find(
+            {"city": {"$regex": f"^{city}$", "$options": "i"}}
+        ).sort("date", 1).limit(30)
+        events = await cursor.to_list(length=30)
+        if not events:
+            # Last resort: any events
+            cursor = db.events.find({}).limit(10)
+            events = await cursor.to_list(length=10)
+        return {"events": [clean(e) for e in events], "source": "fallback", "error": str(e)}
 
 
 # ─── User Routes ─────────────────────────────────────────────────────────────
