@@ -1,0 +1,210 @@
+{
+  "project_overview": {
+    "name": "NearbyEvents",
+    "theme": "LIGHT",
+    "archetype": "6 (Vibrant Play) blended with 1 (Organic & Earthy)",
+    "description": "A fully working, mobile-first local events discovery app built with Expo React Native. Features global event discovery, family-friendly organic design, bento layouts, four switchable themes, and a dedicated Kids Mode."
+  },
+  "global_rules": {
+    "platform": "React Native Expo (SDK 54)",
+    "styling": "StyleSheet.create (NO HTML/CSS/Tailwind)",
+    "testing": "All interactive elements MUST use the `testID` attribute (e.g. `testID=\"home-discover-button\"`)",
+    "layout": "Mobile-first, max width 430px. Use Flexbox.",
+    "icons": "Use `@expo/vector-icons` (Feather or Ionicons preferred)."
+  },
+  "themes": {
+    "bright_and_fun": {
+      "type": "default",
+      "colors": {
+        "background": "#FFFDF7",
+        "primary": "#FF7A00",
+        "secondary": "#FFC700",
+        "surface": "#FFFFFF",
+        "surfaceHighlight": "#FFF4E6",
+        "textMain": "#1F1A17",
+        "textMuted": "#7A6C65",
+        "border": "#F0EAE1",
+        "error": "#FF4444",
+        "success": "#34C759"
+      },
+      "style": {
+        "borderRadius": {
+          "sm": 8,
+          "md": 16,
+          "lg": 24,
+          "full": 9999
+        },
+        "shadow": {
+          "shadowColor": "#FF7A00",
+          "shadowOffset": { "width": 0, "height": 4 },
+          "shadowOpacity": 0.08,
+          "shadowRadius": 12,
+          "elevation": 3
+        }
+      }
+    },
+    "clean_and_minimal": {
+      "type": "alternative",
+      "colors": {
+        "background": "#FFFFFF",
+        "primary": "#000000",
+        "secondary": "#F5F5F5",
+        "surface": "#F9F9F9",
+        "surfaceHighlight": "#EFEFEF",
+        "textMain": "#000000",
+        "textMuted": "#666666",
+        "border": "#E5E5E5"
+      },
+      "style": {
+        "borderRadius": { "sm": 4, "md": 8, "lg": 12, "full": 9999 },
+        "shadow": { "elevation": 0, "shadowOpacity": 0 }
+      }
+    },
+    "bold_and_modern": {
+      "type": "alternative",
+      "colors": {
+        "background": "#F4F4F5",
+        "primary": "#4338CA",
+        "secondary": "#10B981",
+        "surface": "#FFFFFF",
+        "surfaceHighlight": "#EEF2FF",
+        "textMain": "#18181B",
+        "textMuted": "#71717A",
+        "border": "#D4D4D8"
+      },
+      "style": {
+        "borderRadius": { "sm": 0, "md": 0, "lg": 0, "full": 9999 },
+        "shadow": {
+          "shadowColor": "#000",
+          "shadowOffset": { "width": 4, "height": 4 },
+          "shadowOpacity": 1,
+          "shadowRadius": 0,
+          "elevation": 0
+        }
+      }
+    },
+    "dark_and_premium": {
+      "type": "alternative",
+      "colors": {
+        "background": "#09090B",
+        "primary": "#D4AF37",
+        "secondary": "#27272A",
+        "surface": "#18181B",
+        "surfaceHighlight": "#27272A",
+        "textMain": "#FAFAFA",
+        "textMuted": "#A1A1AA",
+        "border": "#3F3F46"
+      },
+      "style": {
+        "borderRadius": { "sm": 4, "md": 12, "lg": 16, "full": 9999 },
+        "shadow": { "elevation": 5, "shadowColor": "#000", "shadowOpacity": 0.5, "shadowRadius": 10 }
+      }
+    },
+    "kids_mode": {
+      "type": "override",
+      "colors": {
+        "background": "#E8F9FF",
+        "primary": "#FF5A5F",
+        "secondary": "#00D084",
+        "surface": "#FFFFFF",
+        "surfaceHighlight": "#FFF0F1",
+        "textMain": "#2B2B2B",
+        "textMuted": "#5C5C5C",
+        "border": "#2B2B2B"
+      },
+      "style": {
+        "borderRadius": { "sm": 16, "md": 24, "lg": 32, "full": 9999 },
+        "borderWidth": 3,
+        "shadow": { "elevation": 0, "shadowOpacity": 0 }
+      }
+    }
+  },
+  "typography": {
+    "fontFamily": {
+      "heading": "Nunito-Black",
+      "bodyBold": "Nunito-Bold",
+      "body": "Nunito-Medium"
+    },
+    "sizes": {
+      "h1": { "fontSize": 36, "lineHeight": 44, "letterSpacing": -0.5 },
+      "h2": { "fontSize": 28, "lineHeight": 36, "letterSpacing": -0.3 },
+      "h3": { "fontSize": 22, "lineHeight": 30, "letterSpacing": -0.2 },
+      "bodyLarge": { "fontSize": 18, "lineHeight": 26 },
+      "body": { "fontSize": 16, "lineHeight": 24 },
+      "caption": { "fontSize": 14, "lineHeight": 20 }
+    }
+  },
+  "spacing": {
+    "2": 8,
+    "3": 12,
+    "4": 16,
+    "6": 24,
+    "8": 32,
+    "12": 48,
+    "16": 64
+  },
+  "layout_patterns": {
+    "event_card": {
+      "description": "Bento-style event cards. Use generous internal padding (min 16px). Image on top (aspectRatio: 4/3) with rounded top corners. Badges (Verified, Trending) float over the image.",
+      "styles": [
+        "Card container: borderRadius lg, background surface, shadow applied.",
+        "Badges: Position absolute top-left/right, glassmorphism or solid primary bg.",
+        "Price: Bold, textMain, bottom right.",
+        "Age Suitability: Caption style, textMuted."
+      ]
+    },
+    "filters_scroll": {
+      "description": "Horizontal ScrollView for category and budget filters. Hide scrollbar.",
+      "styles": [
+        "Pills: paddingHorizontal 16, paddingVertical 8, borderRadius full.",
+        "Active Pill: bg primary, text white.",
+        "Inactive Pill: bg surfaceHighlight, text textMuted."
+      ]
+    },
+    "map_view": {
+      "description": "Full screen map with custom styled pins. Selected pin shows a compact event card modal over the bottom of the map.",
+      "styles": [
+        "Pins: primary color background with icon inside, rounded full."
+      ]
+    },
+    "bottom_navigation": {
+      "description": "React Navigation Bottom Tabs. Must float slightly above bottom edge for Bright & Fun and Kids Mode.",
+      "styles": [
+        "Container: bg surface, paddingVertical 12, borderTopWidth 1, borderTopColor border.",
+        "Active Tab: Icon and label in primary color.",
+        "Inactive Tab: Icon and label in textMuted."
+      ]
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg primary, py-16 (paddingVertical 16), px-32 (paddingHorizontal 32), borderRadius full, justify-center, items-center. Font bodyBold, text white.",
+      "surprise_me": "bg secondary, text textMain, font heading. Add a slight rotation transform or bouncy animation on press.",
+      "kids_mode_toggle": "Large switch or chunky button with a playful icon."
+    },
+    "inputs": {
+      "text": "bg surfaceHighlight, borderRadius md, padding 16, font body. Focus state changes border color to primary."
+    },
+    "badges": {
+      "trending": "bg '#FF4444', text white, fontSize 12, paddingHorizontal 8, borderRadius sm.",
+      "verified": "bg primary, text white, icon 'check-circle'."
+    }
+  },
+  "media": {
+    "image_urls": {
+      "family_outdoors": "https://images.pexels.com/photos/31874011/pexels-photo-31874011.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "live_music": "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwxfHxsaXZlJTIwbXVzaWMlMjBjb25jZXJ0JTIwbmlnaHR8ZW58MHx8fHwxNzc5NDc1ODY2fDA&ixlib=rb-4.1.0&q=85",
+      "food_festival": "https://images.unsplash.com/photo-1551883709-2516220df0bc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwyfHxmb29kJTIwZmVzdGl2YWwlMjBvdXRkb29yc3xlbnwwfHx8fDE3Nzk0NzU4NjZ8MA&ixlib=rb-4.1.0&q=85"
+    }
+  },
+  "instructions_to_main_agent": [
+    "You are building an EXPO REACT NATIVE app. DO NOT use HTML (div, span) or Tailwind CSS classes. You MUST use React Native components (View, Text, TouchableOpacity, ScrollView, Image) and StyleSheet.create.",
+    "Implement the Theme context provider first. Ensure the entire app (colors, border radii) reacts to theme changes.",
+    "Kids Mode must increase all tap targets to a minimum of 64x64px, switch fonts to bold universally, and override the theme to the specific Kids Mode palette with thick borders.",
+    "For the Onboarding Flow, use standard React Native navigation stacks.",
+    "Map Tab should utilize `react-native-maps`.",
+    "Apply `testID` to all interactive UI components as described in global_rules for testing compliance.",
+    "Rely on Context API or Zustand/Redux for managing local state (Lists, Friends, User Profile, App Theme). Since all user data is local, utilize AsyncStorage or SQLite if needed.",
+    "Use the provided image URLs as mock data sources for events to make the UI look rich and complete."
+  ]
+}
