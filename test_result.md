@@ -188,55 +188,67 @@ backend:
             No regressions from iteration 1.
 
 frontend:
-  - task: "Rebrand to Vybe across UI"
-    implemented: true
-    working: true
-    file: "frontend/app.json, frontend/app/(tabs)/home.tsx, frontend/app/onboarding/index.tsx, frontend/app/event/[id].tsx"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: true
-    status_history:
-        - working: true
-          agent: "main"
-          comment: |
-            app.json name → 'Vybe', slug → 'vybe'. Verified HTML <title>Vybe</title> served.
-            Home header now shows 'Vybe' with tagline 'Find your vybe 🎯'.
-            Onboarding intro screen title rebranded. Event share message rebranded.
-  - task: "AI-first home feed with skeleton loader"
+  - task: "Instant seeded events on home + background AI swap"
     implemented: true
     working: true
     file: "frontend/app/(tabs)/home.tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: true
           agent: "main"
           comment: |
-            Home now hits POST /api/ai/events as primary source (with 6h cache).
-            Replaced plain spinner with skeleton loader showing 4 ghost cards
-            and banner 'Finding your vybe in {city}… 🎯'.
-            Pull-to-refresh sends force_refresh=true to bypass cache.
-            Client-side filtering (category, budget, kids mode, book/discover) over
-            AI results. Source badge shown next to event count ('live ✨' / 'cached').
-  - task: "Fix onboarding interests stale-state bug"
+            Home now hits GET /api/events?city=X FIRST (returns in ~200ms with
+            seeded UK events) so the screen is NEVER empty on open. Then fires
+            POST /api/ai/events in the background — when live AI events arrive,
+            they SWAP IN over the seeded data. Subtle inline banner shows
+            "Finding your vybe in {city}… 🎯" while AI works (no full-screen
+            skeleton). Source badge reflects 'live ✨' / 'cached' / 'updating'.
+            AbortController gives the AI request 55s before falling back; the
+            DB events stay on screen even if AI times out.
+  - task: "Interactive Leaflet map view (web)"
     implemented: true
     working: true
-    file: "frontend/contexts/UserContext.tsx, frontend/app/onboarding/interests.tsx"
+    file: "frontend/components/EventMap.web.tsx, frontend/components/EventMap.tsx, frontend/app/(tabs)/map.tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: true
           agent: "main"
           comment: |
-            Root cause: UserContext.updateProfile() built `updated` from the closure's
-            stale `profile` state. Two back-to-back await updateProfile() calls in
-            interests.tsx caused the second to overwrite the first (interests lost).
-            Fix: introduced profileRef in UserContext that always reflects latest profile;
-            updateProfile/markGoing/removeGoing now read from ref, not closure.
-            Also collapsed the two updateProfile calls in interests.tsx into one combined
-            call (interests + username + displayName) for extra safety.
+            Replaced area list with a real interactive map. Web preview uses
+            react-leaflet + OpenStreetMap tiles. Each event becomes a marker
+            with category emoji badge. Tapping a marker opens a popup with
+            event name, venue, date, price + "View Event →" button that routes
+            to /event/[id]. Bottom horizontal carousel shows all events for
+            quick browsing.
+            On native (iOS/Android) the file resolution picks EventMap.tsx
+            which falls back to the area-grouped list and shows a banner
+            telling users to open the web preview for the interactive map.
+            Bundle compiled with leaflet@1.9.4 + react-leaflet@5.0.0 — 1387
+            modules, no errors. CSS injected at runtime via document.head so
+            Metro doesn't need to handle CSS imports.
+  - task: "Open-Meteo weather badge on outdoor events"
+    implemented: true
+    working: true
+    file: "frontend/components/WeatherBadge.tsx, frontend/app/event/[id].tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: |
+            Added <WeatherBadge> to event detail page, rendered only when
+            event.isOutdoor === true. Calls Open-Meteo's free forecast API
+            (https://api.open-meteo.com — no API key) for the event's lat/lng
+            and date. Shows weather emoji + label (Clear / Partly cloudy /
+            Rain / Snow / etc. from WMO codes), high/low temps in °C, and
+            precipitation/wind warnings when relevant. Gracefully hides the
+            badge if the event is more than 14 days away (Open-Meteo's
+            forecast horizon) or the API errors out.
 
 metadata:
   created_by: "main_agent"

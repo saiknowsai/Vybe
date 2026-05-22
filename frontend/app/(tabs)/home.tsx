@@ -49,6 +49,7 @@ export default function HomeScreen() {
   const [showCityPicker, setShowCityPicker] = useState(false);
   const [citySearch, setCitySearch] = useState('');
   const [aiSource, setAiSource] = useState<'ai_generated' | 'cached' | 'fallback' | null>(null);
+  const [aiRefreshing, setAiRefreshing] = useState(false);
 
   const city = profile.city || 'London';
 
@@ -75,13 +76,15 @@ export default function HomeScreen() {
   }, [kidsMode, category, budget, mode]);
 
   const fetchEvents = useCallback(async (forceRefresh = false) => {
-    if (forceRefresh) setRefreshing(true); else setLoading(true);
-    setAiSource(null);
+    if (forceRefresh) setRefreshing(true);
+    // For initial load, keep showing skeleton ONLY if we have no events yet.
+    // Once we have any data (DB or AI), avoid full-screen skeleton on city change.
+    setLoading(prev => (forceRefresh ? false : prev && events.length === 0));
 
-    // Helper: hit the seeded DB endpoint (instant fallback)
+    // Helper: hit the seeded DB endpoint (instant, returns within ~200ms)
     const fetchFromDb = async (): Promise<Event[]> => {
       try {
-        const res = await fetch(`${API_URL}/api/events?city=${encodeURIComponent(city)}&limit=30`);
+        const res = await fetch(`${API_URL}/api/events?city=${encodeURIComponent(city)}&limit=50`);
         const data = await res.json();
         return Array.isArray(data) ? data : [];
       } catch {
@@ -89,11 +92,19 @@ export default function HomeScreen() {
       }
     };
 
+    // STEP 1 — INSTANT: load seeded DB events first so the screen is never empty.
+    if (!forceRefresh) {
+      const dbList = await fetchFromDb();
+      if (dbList.length > 0) {
+        setEvents(dbList);
+        setAiSource('fallback');
+        setLoading(false);
+      }
+    }
+
+    // STEP 2 — BACKGROUND: fire AI request. Swap in results when ready.
+    setAiRefreshing(true);
     try {
-      // Primary path: AI live events (Claude w/ 6h cache). Race against a 55s
-      // ceiling because the public proxy times out around ~60s. If AI is slow
-      // we show seeded fallback first; AI will continue and populate cache for
-      // the next visit / pull-to-refresh.
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 55000);
 
@@ -113,23 +124,26 @@ export default function HomeScreen() {
       const aiData = await aiRes.json();
       const list: Event[] = Array.isArray(aiData?.events) ? aiData.events : [];
       if (list.length > 0) {
-        setAiSource(aiData?.source || null);
         setEvents(list);
-      } else {
-        // Empty AI response — use DB seeded events
+        setAiSource(aiData?.source || 'ai_generated');
+      } else if (events.length === 0) {
+        // Last resort if both AI and step 1 produced nothing
         const dbList = await fetchFromDb();
         setEvents(dbList);
         setAiSource('fallback');
       }
     } catch {
-      // Proxy timeout or network error — show seeded events instantly
-      const dbList = await fetchFromDb();
-      setEvents(dbList);
-      setAiSource('fallback');
+      // AI timed out or failed — DB events from step 1 stay visible.
+      if (events.length === 0) {
+        const dbList = await fetchFromDb();
+        setEvents(dbList);
+        setAiSource('fallback');
+      }
     }
     setLoading(false);
     setRefreshing(false);
-  }, [city, profile.interests, profile.ageGroup]);
+    setAiRefreshing(false);
+  }, [city, profile.interests, profile.ageGroup, events.length]);
 
   React.useEffect(() => { fetchEvents(); }, [fetchEvents]);
 
@@ -209,9 +223,19 @@ export default function HomeScreen() {
           </Text>
         </TouchableOpacity>
         <Text style={[styles.eventCount, { color: activeColors.textMuted }]}>
-          {displayEvents.length} events{aiSource === 'cached' ? ' · cached' : aiSource === 'ai_generated' ? ' · live ✨' : ''}
+          {displayEvents.length} events{aiRefreshing ? ' · ✨ updating' : aiSource === 'cached' ? ' · cached' : aiSource === 'ai_generated' ? ' · live ✨' : ''}
         </Text>
       </View>
+
+      {/* Background AI refresh banner (subtle, non-blocking) */}
+      {aiRefreshing && !loading && (
+        <View style={[styles.refreshBanner, { backgroundColor: activeColors.surfaceHighlight, borderRadius: activeRadius.md }]}>
+          <ActivityIndicator size="small" color={activeColors.primary} />
+          <Text style={[styles.refreshBannerText, { color: activeColors.textMain }]} numberOfLines={1}>
+            Finding your vybe in {city}… 🎯
+          </Text>
+        </View>
+      )}
 
       {/* Events Feed */}
       {loading ? (
@@ -351,6 +375,8 @@ const styles = StyleSheet.create({
   aiText: { fontSize: 13 },
   aiBanner: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, marginBottom: 12 },
   aiBannerText: { fontSize: 14, fontWeight: '700', flex: 1 },
+  refreshBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 8, padding: 8, paddingHorizontal: 12, gap: 8 },
+  refreshBannerText: { fontSize: 12, fontWeight: '700', flex: 1 },
   skeleton: { borderWidth: 1, overflow: 'hidden', marginBottom: 12 },
   skelImg: { width: '100%', height: 140 },
   skelBody: { padding: 14, gap: 8 },

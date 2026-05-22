@@ -9,6 +9,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useUser } from '../../contexts/UserContext';
 import { useApp } from '../../contexts/AppContext';
 import { Event } from '../../components/EventCard';
+import WeatherBadge from '../../components/WeatherBadge';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
@@ -326,6 +327,23 @@ export default function EventDetailScreen() {
 
           {/* Description */}
           <Text style={[styles.description, { color: activeColors.textMuted }]}>{event.description}</Text>
+
+          {/* Weather forecast — outdoor events only, if event date is within ~14 days */}
+          {event.isOutdoor && (
+            <WeatherBadge
+              lat={event.lat}
+              lng={event.lng}
+              date={event.date}
+              themeColors={{
+                surface: activeColors.surface,
+                surfaceHighlight: activeColors.surfaceHighlight,
+                textMain: activeColors.textMain,
+                textMuted: activeColors.textMuted,
+                primary: activeColors.primary,
+              }}
+              radius={activeRadius.md}
+            />
+          )}
 
           {/* Warning banners */}
           {event.isSoldOut && (
