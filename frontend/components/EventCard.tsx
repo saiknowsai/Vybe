@@ -57,6 +57,20 @@ const formatDate = (dateStr: string) => {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 };
 
+// "Arch 2, Newcastle Upon Tyne, NE1 2NP" -> "NE1 2NP Newcastle"
+const UK_POSTCODE = /\b([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})\b/i;
+export const postcodeArea = (address?: string, fallbackCity?: string): string | null => {
+  const m = (address || '').match(UK_POSTCODE);
+  if (!m) return null;
+  const postcode = `${m[1]} ${m[2]}`.toUpperCase();
+  const parts = (address || '').split(',').map(p => p.trim()).filter(Boolean);
+  const idx = parts.findIndex(p => UK_POSTCODE.test(p));
+  let town = idx > 0 ? parts[idx - 1] : '';
+  if (!town || /\d/.test(town)) town = fallbackCity || '';
+  town = town.replace(/\s+upon\s+tyne$/i, '').replace(/\s+on\s+tyne$/i, '');
+  return town ? `${postcode} ${town}` : postcode;
+};
+
 export default function EventCard({ event, onPress, onBookNow, showBookNow = false }: Props) {
   const { activeColors, activeRadius, kidsMode } = useTheme();
 
@@ -131,7 +145,7 @@ export default function EventCard({ event, onPress, onBookNow, showBookNow = fal
           <Text style={[styles.meta, { color: activeColors.textMuted }]}> {formatDate(event.date)}</Text>
           <Text style={[styles.meta, { color: activeColors.border }]}>  •  </Text>
           <Ionicons name="location-outline" size={13} color={activeColors.textMuted} />
-          <Text style={[styles.meta, { color: activeColors.textMuted, flex: 1 }]} numberOfLines={1}> {event.venue}</Text>
+          <Text style={[styles.meta, { color: activeColors.textMuted, flex: 1 }]} numberOfLines={1}> {(() => { const pa = postcodeArea(event.address, (event as any).city); return pa ? `${pa} · ${event.venue}` : event.venue; })()}</Text>
         </View>
 
         {/* Age Suitability */}
