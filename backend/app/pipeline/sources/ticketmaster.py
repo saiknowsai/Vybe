@@ -12,6 +12,7 @@ import httpx
 from ...cities import City
 from ...models import Event
 from ..geohash import encode
+from ..http import get_with_backoff
 from ..normalize import guess_category, make_event
 
 log = logging.getLogger(__name__)
@@ -97,12 +98,11 @@ async def fetch(city: City, api_key: str, lookahead_days: int,
         "size": PAGE_SIZE, "sort": "date,asc",
     }
     own = client is None
-    client = client or httpx.AsyncClient(timeout=20)
+    client = client or httpx.AsyncClient()
     events: list[Event] = []
     try:
         for page in range(MAX_PAGES):
-            r = await client.get(URL, params=params | {"page": page})
-            r.raise_for_status()
+            r = await get_with_backoff(client, URL, params=params | {"page": page}, timeout=10)
             data = r.json()
             for item in (data.get("_embedded") or {}).get("events", []):
                 ev = parse(item, city)

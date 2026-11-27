@@ -15,8 +15,14 @@ PAST = (date.today() - timedelta(days=60)).isoformat()
 
 
 @pytest.fixture(autouse=True)
-def no_geocode_delay(monkeypatch):
+def fast_and_isolated(monkeypatch, tmp_path):
     monkeypatch.setattr("app.pipeline.geocode.RATE_DELAY", 0)
+    monkeypatch.setattr("app.pipeline.http.BASE_DELAY", 0)
+    monkeypatch.setattr("app.pipeline.sources.skiddle.SAVED_DIR", tmp_path)
+
+    async def no_sleep(*_):
+        return None
+    monkeypatch.setattr("app.pipeline.sources.skiddle.asyncio.sleep", no_sleep)
 
 
 @pytest.fixture
@@ -83,6 +89,7 @@ def http_client():
             assert req.url.params["apikey"] == "tm" and req.url.params["geoPoint"]
             return httpx.Response(200, json=tm_payload())
         if "skiddle" in req.url.host:
+            assert req.headers["User-Agent"].startswith("VybeEvents/")
             return httpx.Response(200, json=sk_payload())
         if "nominatim" in req.url.host:
             return httpx.Response(200, json=[{"lat": "54.9735", "lon": "-1.6130"}])

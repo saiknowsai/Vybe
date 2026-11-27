@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     claude_monthly_search_budget: int = 600     # ~$6/month at $10 per 1,000 searches, plus tokens
 
     # Pipeline
+    app_url: str = "https://github.com/saiknowsai/Vybe"  # sent in User-Agent headers
     contact_email: str = ""   # sent to OpenStreetMap geocoder, required by its usage policy
     lookahead_days: int = 30
 

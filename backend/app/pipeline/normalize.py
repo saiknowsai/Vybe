@@ -98,7 +98,7 @@ def make_event(*, provider: str, external_id: str | None, url: str | None, city:
         category=category,
         price=price,
         priceLabel=fields.pop("priceLabel", None) or price_label(price, max_price),
-        imageUrl=fields.pop("imageUrl", None) or CATEGORY_IMAGES[category],
+        imageUrl=fields.pop("imageUrl", None),   # placeholder added after merging
         source=provider,
         sources=[SourceRef(provider=provider, externalId=external_id, url=url, fetchedAt=fetched)],
         sourceUrl=url,

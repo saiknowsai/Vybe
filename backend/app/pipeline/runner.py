@@ -97,7 +97,8 @@ async def run_city(city: City, db, settings: Settings, sources: tuple[str, ...] 
             city, settings.ticketmaster_api_key, settings.lookahead_days, http)))
     if "skiddle" in sources:
         jobs.append(run("skiddle", skiddle.fetch(
-            city, settings.skiddle_api_key, settings.lookahead_days, http)))
+            city, settings.skiddle_api_key, settings.lookahead_days, http,
+            app_url=settings.app_url, use_saved=dry_run)))
     if "claude_web" in sources:
         left = (settings.claude_max_searches_per_city if dry_run
                 else await claude_searches_left(db, settings))

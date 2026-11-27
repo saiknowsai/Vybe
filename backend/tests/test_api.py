@@ -31,7 +31,7 @@ async def test_events_list_filters(client):
     assert {e["name"] for e in free} == {"Santa's Grotto Sing-along", "Grainger Market Christmas Late"}
 
     kids = (await client.get("/api/events", params={"city": "Newcastle", "kids_mode": True})).json()
-    assert "Sam Fender" not in {e["name"] for e in kids}   # Skiddle says 14+; strictest age wins on merge
+    assert "Sam Fender - Live" not in {e["name"] for e in kids}   # Skiddle says 14+
 
     # regex characters in search must not break the query
     assert (await client.get("/api/events", params={"city": "Newcastle", "search": "(("})).status_code == 200

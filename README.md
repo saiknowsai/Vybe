@@ -16,6 +16,7 @@ search            prices, ages)   two sources)       cached)
 ```
 
 - **Ticketmaster / Skiddle**: official listings, so they're marked verified.
+  Ticketmaster only approves company email addresses, so it's off until Vybe has its own domain.
 - **Claude + web search**: finds markets, community, council and family events the
   ticket sites miss. Every event must cite a page that actually came back from the
   search, or it's dropped. Searches are capped per run and per month.
@@ -63,6 +64,22 @@ backend/app/
     runner.py        run_city(): the whole pipeline
 frontend/            Expo Router app
 ```
+
+## Skiddle terms (must-do before launch)
+
+The Skiddle API key is for **non-commercial use only**. Before charging users or
+launching publicly, get written commercial terms from Skiddle (ask via their
+affiliate program). Their terms also require:
+
+- Credit Skiddle **by name and logo** wherever their data shows. Name: done on the
+  event page ("via Skiddle"). **Logo: not done yet** (logos: skiddle.com/logo).
+- Link with the event link from the API: done (`ticketUrl`).
+- Don't modify their data: Skiddle names, descriptions and prices are stored as given.
+- Not used in a product that "directly competes" with Skiddle. Raise this with them
+  when asking for commercial terms.
+- Polite client: User-Agent, one request at a time, short timeouts, backoff on
+  429/5xx, cached results. Done in `pipeline/http.py` and `sources/skiddle.py`.
+  A `--dry-run` reuses today's saved Skiddle response instead of calling again.
 
 ## Known gaps
 

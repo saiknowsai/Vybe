@@ -1,8 +1,11 @@
 """Merge the same event reported by several sources into one record."""
 from ..models import Event
+from .normalize import CATEGORY_IMAGES
 
 # Higher = more trusted for core fields (time, price, venue, coordinates)
-PRIORITY = {"ticketmaster": 3, "skiddle": 3, "manual": 4, "claude_web": 1}
+# Skiddle is top so its data is kept exactly as given (their terms forbid modifying it);
+# other sources only fill fields Skiddle left empty.
+PRIORITY = {"manual": 5, "skiddle": 4, "ticketmaster": 3, "claude_web": 1}
 
 
 def _rank(ev: Event) -> int:
@@ -23,9 +26,9 @@ def merge(primary: Event, other: Event) -> Event:
             continue
         if data.get(field) in (None, "", [], {}) and value not in (None, "", [], {}):
             data[field] = value
-    if len(other.description) > len(primary.description) and _rank(other) >= 1:
+    if primary.source != "skiddle" and len(other.description) > len(primary.description):
         data["description"] = other.description
-    if _age_floor(other.ageSuitability) > _age_floor(primary.ageSuitability):
+    if primary.source != "skiddle" and _age_floor(other.ageSuitability) > _age_floor(primary.ageSuitability):
         data["ageSuitability"] = other.ageSuitability   # safety: strictest age limit wins
     if other.status == "cancelled":
         data["status"] = "cancelled"
@@ -43,4 +46,7 @@ def dedupe(events: list[Event]) -> list[Event]:
             by_key[ev.dedupeKey] = merge(by_key[ev.dedupeKey], ev)
         else:
             by_key[ev.dedupeKey] = ev
-    return list(by_key.values())
+    out = list(by_key.values())
+    for ev in out:  # only now fall back to a stock photo, so real images from any source win
+        ev.imageUrl = ev.imageUrl or CATEGORY_IMAGES[ev.category]
+    return out

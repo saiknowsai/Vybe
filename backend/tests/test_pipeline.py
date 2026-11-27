@@ -36,11 +36,12 @@ async def test_full_run(db, settings):
     assert s["afterDedupe"] == 4               # Sam Fender merged across TM + Skiddle
 
     events = {e["name"]: e async for e in db.events.find({})}
-    fender = events["Sam Fender"]
+    fender = events["Sam Fender - Live"]           # Skiddle record wins, kept as given
     assert {x["provider"] for x in fender["sources"]} == {"ticketmaster", "skiddle"}
-    assert fender["imageUrl"] == "https://img/tm1-big.jpg"
-    assert fender["priceLabel"] == "From £45" and fender["time"] == "19:30"
-    assert fender["description"] == "Hometown gig."   # filled from Skiddle
+    assert fender["priceLabel"] == "£45.00" and fender["description"] == "Hometown gig."
+    assert fender["ticketUrl"] == "https://www.skiddle.com/e/999"
+    assert fender["imageUrl"] == "https://img/tm1-big.jpg"   # gap filled from Ticketmaster
+    assert fender["ageSuitability"] == "14+" and fender["time"] == "19:30"
 
     assert events["Comedy Night Live"]["status"] == "cancelled"
     assert events["Comedy Night Live"]["category"] == "Comedy"
@@ -61,12 +62,12 @@ async def test_full_run(db, settings):
 @pytest.mark.asyncio
 async def test_rerun_keeps_ids_and_social_counts(db, settings):
     await run_city(NCL, db, settings, http=http_client(), anthropic_client=FakeAnthropic())
-    fender = await db.events.find_one({"name": "Sam Fender"})
+    fender = await db.events.find_one({"name": "Sam Fender - Live"})
     await db.events.update_one({"_id": fender["_id"]}, {"$set": {"attendeeCount": 7, "reviewCount": 2}})
 
     s = await run_city(NCL, db, settings, http=http_client(), anthropic_client=FakeAnthropic())
     assert s["inserted"] == 0 and s["updated"] == 4
-    again = await db.events.find_one({"name": "Sam Fender"})
+    again = await db.events.find_one({"name": "Sam Fender - Live"})
     assert again["id"] == fender["id"]
     assert again["attendeeCount"] == 7 and again["reviewCount"] == 2
     assert await db.events.count_documents({}) == 4
@@ -103,3 +104,48 @@ async def test_dry_run_writes_nothing(db, settings):
     assert len(s["preview"]) == 4
     assert await db.events.count_documents({}) == 0
     assert await db.pipeline_runs.count_documents({}) == 0
+
+
+@pytest.mark.asyncio
+async def test_backoff_retries_429_then_succeeds():
+    import httpx
+    from app.pipeline.http import get_with_backoff
+    calls = []
+
+    def handler(req):
+        calls.append(1)
+        return httpx.Response(429, headers={"Retry-After": "0"}) if len(calls) < 3 else httpx.Response(200, json={})
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+        r = await get_with_backoff(c, "https://x.test/", params={})
+    assert r.status_code == 200 and len(calls) == 3
+
+
+@pytest.mark.asyncio
+async def test_backoff_does_not_retry_403():
+    import httpx
+    from app.pipeline.http import get_with_backoff
+    calls = []
+
+    def handler(req):
+        calls.append(1)
+        return httpx.Response(403)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+        with pytest.raises(httpx.HTTPStatusError):
+            await get_with_backoff(c, "https://x.test/", params={})
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_skiddle_dry_run_reuses_saved_response(settings):
+    import httpx
+    from app.pipeline.sources import skiddle
+    from .conftest import sk_payload
+    calls = []
+
+    def handler(req):
+        calls.append(1)
+        return httpx.Response(200, json=sk_payload())
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+        first = await skiddle.fetch(NCL, "sk", 30, c, use_saved=True)
+        second = await skiddle.fetch(NCL, "sk", 30, c, use_saved=True)
+    assert len(first) == len(second) == 2 and len(calls) == 1
