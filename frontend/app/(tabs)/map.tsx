@@ -18,7 +18,7 @@ export default function MapScreen() {
 
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
-  const city = profile.city || 'London';
+  const city = profile.city || 'Newcastle';
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);

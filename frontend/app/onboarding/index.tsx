@@ -31,7 +31,7 @@ export default function OnboardingWelcome() {
       }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const geo = await Location.reverseGeocodeAsync({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
-      const city = geo[0]?.city || geo[0]?.subregion || 'London';
+      const city = geo[0]?.city || geo[0]?.subregion || 'Newcastle';
       await updateProfile({ city });
       router.push('/onboarding/age');
     } catch {
@@ -47,7 +47,7 @@ export default function OnboardingWelcome() {
   };
 
   const submitManual = async () => {
-    const city = manualCity.trim() || 'London';
+    const city = manualCity.trim() || 'Newcastle';
     await updateProfile({ city });
     router.push('/onboarding/age');
   };

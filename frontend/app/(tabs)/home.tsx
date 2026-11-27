@@ -48,10 +48,10 @@ export default function HomeScreen() {
   const [mode, setMode] = useState<'discover' | 'book'>('discover');
   const [showCityPicker, setShowCityPicker] = useState(false);
   const [citySearch, setCitySearch] = useState('');
-  const [aiSource, setAiSource] = useState<'ai_generated' | 'cached' | 'fallback' | null>(null);
+  const [aiSource, setAiSource] = useState<'live' | 'empty' | 'ai_generated' | 'cached' | 'fallback' | null>(null);
   const [aiRefreshing, setAiRefreshing] = useState(false);
 
-  const city = profile.city || 'London';
+  const city = profile.city || 'Newcastle';
 
   // Client-side filtering for AI-fetched events
   const applyFilters = useCallback((list: Event[]) => {
@@ -223,7 +223,7 @@ export default function HomeScreen() {
           </Text>
         </TouchableOpacity>
         <Text style={[styles.eventCount, { color: activeColors.textMuted }]}>
-          {displayEvents.length} events{aiRefreshing ? ' · ✨ updating' : aiSource === 'cached' ? ' · cached' : aiSource === 'ai_generated' ? ' · live ✨' : ''}
+          {displayEvents.length} events{aiRefreshing ? ' · ✨ updating' : aiSource === 'cached' ? ' · cached' : aiSource === 'live' ? ' · live ✨' : ''}
         </Text>
       </View>
 

@@ -86,3 +86,12 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# Vybe
+.env
+*.env
+!.env.example
+frontend/.metro-cache/
+__pycache__/
+.pytest_cache/
+*adminsdk*.json
