@@ -41,7 +41,7 @@ async def test_events_list_filters(client):
 async def test_ai_compat_endpoint_never_generates(client):
     r = await client.post("/api/ai/events", json={"city": "Newcastle", "force_refresh": True})
     body = r.json()
-    assert body["source"] == "live" and body["count"] == 3
+    assert body["source"] == "live" and body["count"] == 4
     assert body["lastRefreshed"]
     assert all(e["source"] != "ai_generated" for e in body["events"])
 

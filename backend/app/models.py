@@ -29,6 +29,7 @@ class Event(BaseModel):
     time: Optional[str] = None      # HH:MM (local), None if unknown
     category: Category = "Arts"
     price: Optional[float] = None   # lowest price in GBP, 0 = free, None = unknown
+    priceMax: Optional[float] = None
     priceLabel: str = "See listing"
     imageUrl: Optional[str] = None
     ticketUrl: Optional[str] = None

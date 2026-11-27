@@ -1,0 +1,56 @@
+# Builds the Vybe web app and publishes it to GitHub Pages:
+#   https://saiknowsai.github.io/Vybe/
+# Needs one repository VARIABLE (Settings → Secrets and variables → Actions → Variables):
+#   BACKEND_URL = the Render address, e.g. https://vybe-api.onrender.com
+name: Publish web app
+
+on:
+  push:
+    branches: [main]
+    paths: ["frontend/**", ".github/workflows/pages.yml"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install --legacy-peer-deps
+      - name: Serve from /Vybe/ (the repo name) instead of the site root
+        run: |
+          node -e "const f='app.json',j=require('./'+f);j.expo.experiments={...(j.expo.experiments||{}),baseUrl:'/'+process.env.REPO};require('fs').writeFileSync(f,JSON.stringify(j,null,2))"
+        env:
+          REPO: ${{ github.event.repository.name }}
+      - run: npx expo export --platform web
+        env:
+          EXPO_PUBLIC_BACKEND_URL: ${{ vars.BACKEND_URL }}
+      - name: Let links to inner pages work on refresh
+        run: cp dist/index.html dist/404.html && touch dist/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

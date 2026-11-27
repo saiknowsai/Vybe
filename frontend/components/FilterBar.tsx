@@ -22,6 +22,7 @@ export default function FilterBar({ items, active, onSelect, testIDPrefix = 'fil
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      style={styles.bar}
       contentContainerStyle={styles.container}
     >
       {items.map(item => {
@@ -56,6 +57,8 @@ export default function FilterBar({ items, active, onSelect, testIDPrefix = 'fil
 }
 
 const styles = StyleSheet.create({
+  // Without this, a horizontal ScrollView inside a flex column collapses to 0 height on web
+  bar: { flexGrow: 0, flexShrink: 0 },
   container: { paddingHorizontal: 16, paddingVertical: 8, gap: 8, flexDirection: 'row' },
   pill: {
     flexDirection: 'row',

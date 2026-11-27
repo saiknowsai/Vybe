@@ -32,10 +32,42 @@ MAX_PAGES = 5
 VERSION = "2.0"
 SAVED_DIR = Path(__file__).resolve().parents[3] / ".cache"  # backend/.cache
 
+# Skiddle EventCode -> fallback Vybe category. Names are still checked first for
+# clearer signals (a "Christmas Market" tagged SEASONAL becomes Markets).
 CODE_MAP = {"FEST": "Music", "LIVE": "Music", "CLUB": "Music", "THEATRE": "Arts",
             "COMEDY": "Comedy", "EXHIB": "Arts", "KIDS": "Family", "BARPUB": "Food",
-            "SPORT": "Sports", "ARTS": "Arts"}
+            "FOOD": "Food", "SPORT": "Sports", "ARTS": "Arts", "EXPER": "Arts",
+            "SEASONAL": "Arts", "CONF": "Arts", "RELIG": "Arts"}
+CLEAR_CODES = {"LIVE", "CLUB", "COMEDY", "KIDS", "SPORT", "THEATRE"}
 SKIP_CODES = {"DATE"}  # dating events — not what Vybe is for
+
+# Skiddle's terms bar using their data on anything promoting gambling, so casino and
+# bingo-hall listings are dropped. Corporate "party bookings" are dropped as noise.
+BLOCKED_WORDS = ("casino", "buzz bingo", "mecca bingo", "party bookings")
+
+
+def _blocked(item: dict) -> bool:
+    text = f"{item.get('eventname', '')} {(item.get('venue') or {}).get('name', '')}".lower()
+    return any(w in text for w in BLOCKED_WORDS)
+
+
+def _price(item: dict) -> tuple[float | None, float | None, str | None]:
+    """Price lives in ticketpricing {minPrice, maxPrice}; entryprice is usually empty."""
+    tp = item.get("ticketpricing") or {}
+    lo, hi = tp.get("minPrice"), tp.get("maxPrice")
+    if isinstance(lo, (int, float)):
+        lo, hi = float(lo), float(hi) if isinstance(hi, (int, float)) else float(lo)
+        fmt = lambda v: f"£{v:,.2f}".replace(".00", "")
+        if hi == 0:
+            return 0.0, 0.0, "Free"
+        if lo == hi:
+            return lo, hi, fmt(lo)
+        return lo, hi, f"{'Free' if lo == 0 else fmt(lo)} – {fmt(hi)}"
+    raw = item.get("entryprice")
+    if raw:
+        v = parse_price(raw)
+        return v, v, str(raw)
+    return None, None, None
 
 
 def _truthy(v) -> bool:
@@ -54,7 +86,7 @@ def parse(item: dict, city: City) -> Event | None:
     code = (item.get("EventCode") or item.get("eventcode") or "").upper()
     name = item.get("eventname") or item.get("name")
     date = (item.get("date") or item.get("startdate") or "")[:10]
-    if not name or not date or code in SKIP_CODES:
+    if not name or not date or code in SKIP_CODES or _blocked(item):
         return None
     venue = item.get("venue") or {}
     addr = [venue.get("address"), venue.get("town"), venue.get("postcode")]
@@ -64,9 +96,17 @@ def parse(item: dict, city: City) -> Event | None:
     except (TypeError, ValueError):
         min_age = 0
     end = (item.get("enddate") or "")[:10] or None
-    category = CODE_MAP.get(code) or guess_category(name)
-    if code == "FEST":
-        category = guess_category(name, default="Music")
+    genres = " ".join(g.get("name", "") for g in item.get("genres") or [])
+    if code in CLEAR_CODES:   # Skiddle's own category is specific enough to trust
+        category = "Comedy" if "comedy" in name.lower() else CODE_MAP[code]
+    else:
+        category = guess_category(f"{name} {genres}", default=CODE_MAP.get(code, "Arts"))
+    price, price_max, price_text = _price(item)
+    status = "scheduled"
+    if _truthy(item.get("cancelled")):
+        status = "cancelled"
+    elif item.get("rescheduledDate"):
+        status = "rescheduled"
     return make_event(
         provider="skiddle", external_id=str(item.get("id")) if item.get("id") else None,
         url=item.get("link"), city=city.name, name=name, date=date,
@@ -78,11 +118,11 @@ def parse(item: dict, city: City) -> Event | None:
         lat=float(venue["latitude"]) if venue.get("latitude") else None,
         lng=float(venue["longitude"]) if venue.get("longitude") else None,
         category=category,
-        price=parse_price(item.get("entryprice")),           # numeric copy for the price filter
-        priceLabel=str(item["entryprice"]) if item.get("entryprice") else None,  # shown as given
-        imageUrl=item.get("largeimageurl") or item.get("imageurl"),
+        price=price, max_price=price_max, priceLabel=price_text,
+        imageUrl=item.get("xlargeimageurl") or item.get("largeimageurl") or item.get("imageurl"),
         ticketUrl=item.get("link"), ticketProvider="Skiddle",
-        status="cancelled" if _truthy(item.get("cancelled")) else "scheduled",
+        status=status,
+        tags=[g.get("name", "").lower() for g in item.get("genres") or [] if g.get("name")][:6],
         ageSuitability=f"{min_age}+" if min_age else ("Family" if code == "KIDS" else "All Ages"),
         isVerified=True,
     )

@@ -29,8 +29,9 @@ async def _find_events(city: str, *, category=None, budget=None, search=None,
         query["ageSuitability"] = {"$in": ["All Ages", "Family"]}
     if category and category != "All":
         query["category"] = category
-    if budget == "free":
+    if budget == "free":   # truly free: no paid ticket tiers either
         query["price"] = 0
+        query["priceMax"] = {"$in": [0, None]}
     elif budget in BUDGET_MAX:
         query["price"] = {"$lte": BUDGET_MAX[budget]}
     if search:
@@ -45,7 +46,7 @@ async def _find_events(city: str, *, category=None, budget=None, search=None,
 async def list_events(city: str = "Newcastle", category: Optional[str] = None,
                       budget: Optional[str] = None, search: Optional[str] = None,
                       kids_mode: bool = False, page: int = 1, limit: int = 20):
-    limit = max(1, min(limit, 100))
+    limit = max(1, min(limit, 500))
     page = max(1, page)
     return await _find_events(city, category=category, budget=budget, search=search,
                               kids_mode=kids_mode, skip=(page - 1) * limit, limit=limit)
@@ -88,7 +89,7 @@ async def ai_events_compat(body: dict):
     `force_refresh` is ignored — refreshing is the scheduled pipeline's job.
     """
     city = body.get("city") or "Newcastle"
-    events = await _find_events(city, limit=50)
+    events = await _find_events(city, limit=500)  # the app filters on the client, so send the whole window
     last_run = await get_db().pipeline_runs.find_one(
         {"city": _city_name(city), "status": "ok"}, sort=[("startedAt", -1)])
     return {

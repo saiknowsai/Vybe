@@ -30,7 +30,7 @@ _KEYWORDS = [  # checked in order against name/genre text when a source's catego
 
 
 def guess_category(text: str, default: str = "Arts") -> str:
-    t = f" {text.lower()} "
+    t = f" {text.lower()} ".replace("boxing day", "")
     for cat, words in _KEYWORDS:
         if any(w in t for w in words):
             return cat
@@ -97,6 +97,7 @@ def make_event(*, provider: str, external_id: str | None, url: str | None, city:
         date=date,
         category=category,
         price=price,
+        priceMax=max_price if max_price is not None else price,
         priceLabel=fields.pop("priceLabel", None) or price_label(price, max_price),
         imageUrl=fields.pop("imageUrl", None),   # placeholder added after merging
         source=provider,

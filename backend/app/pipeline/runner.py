@@ -8,6 +8,7 @@ from ..config import Settings
 from ..models import Event
 from ..util import now_iso
 from .dedupe import dedupe
+from .enrich import enrich
 from .geocode import geocode_missing
 from .sources import claude_web, skiddle, ticketmaster
 
@@ -115,6 +116,9 @@ async def run_city(city: City, db, settings: Settings, sources: tuple[str, ...] 
     summary["afterDedupe"] = len(merged)
     summary["geocoded"] = await geocode_missing(merged, city, db, settings.contact_email,
                                                 http) if not dry_run else 0
+
+    summary["enrich"] = await enrich(merged, db, city=city, app_url=settings.app_url,
+                                     dry_run=dry_run, client=http)
 
     if dry_run:
         summary["preview"] = [

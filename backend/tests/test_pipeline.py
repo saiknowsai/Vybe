@@ -32,13 +32,14 @@ async def test_full_run(db, settings):
 
     assert s["status"] == "ok", s
     assert s["errors"] == {}
-    assert s["sources"] == {"ticketmaster": 2, "skiddle": 2, "claude_web": 1}
-    assert s["afterDedupe"] == 4               # Sam Fender merged across TM + Skiddle
+    assert s["sources"] == {"ticketmaster": 2, "skiddle": 3, "claude_web": 1}
+    assert s["afterDedupe"] == 5               # Sam Fender merged across TM + Skiddle
 
     events = {e["name"]: e async for e in db.events.find({})}
     fender = events["Sam Fender - Live"]           # Skiddle record wins, kept as given
     assert {x["provider"] for x in fender["sources"]} == {"ticketmaster", "skiddle"}
-    assert fender["priceLabel"] == "£45.00" and fender["description"] == "Hometown gig."
+    assert fender["priceLabel"] == "£45" and fender["description"] == "Hometown gig."
+    assert fender["tags"] == ["indie"]
     assert fender["ticketUrl"] == "https://www.skiddle.com/e/999"
     assert fender["imageUrl"] == "https://img/tm1-big.jpg"   # gap filled from Ticketmaster
     assert fender["ageSuitability"] == "14+" and fender["time"] == "19:30"
@@ -54,6 +55,9 @@ async def test_full_run(db, settings):
     assert "Made-up Festival" not in events                 # source URL never appeared in search results
     assert "Old Fair" not in events                         # outside date range
     assert "Speed Dating" not in events
+    assert "Black Friday - Buzz Bingo Newcastle" not in events   # gambling: Skiddle terms
+    boxing = events["Boxing Day Special"]
+    assert boxing["category"] == "Music" and boxing["priceLabel"] == "Free – £12"
 
     usage = await db.pipeline_usage.find_one({})
     assert usage["searches"] == 3
@@ -66,11 +70,11 @@ async def test_rerun_keeps_ids_and_social_counts(db, settings):
     await db.events.update_one({"_id": fender["_id"]}, {"$set": {"attendeeCount": 7, "reviewCount": 2}})
 
     s = await run_city(NCL, db, settings, http=http_client(), anthropic_client=FakeAnthropic())
-    assert s["inserted"] == 0 and s["updated"] == 4
+    assert s["inserted"] == 0 and s["updated"] == 5
     again = await db.events.find_one({"name": "Sam Fender - Live"})
     assert again["id"] == fender["id"]
     assert again["attendeeCount"] == 7 and again["reviewCount"] == 2
-    assert await db.events.count_documents({}) == 4
+    assert await db.events.count_documents({}) == 5
 
 
 @pytest.mark.asyncio
@@ -101,7 +105,7 @@ async def test_missing_keys_skip_sources(db, settings):
 @pytest.mark.asyncio
 async def test_dry_run_writes_nothing(db, settings):
     s = await run_city(NCL, db, settings, dry_run=True, http=http_client(), anthropic_client=FakeAnthropic())
-    assert len(s["preview"]) == 4
+    assert len(s["preview"]) == 5
     assert await db.events.count_documents({}) == 0
     assert await db.pipeline_runs.count_documents({}) == 0
 
@@ -148,4 +152,4 @@ async def test_skiddle_dry_run_reuses_saved_response(settings):
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
         first = await skiddle.fetch(NCL, "sk", 30, c, use_saved=True)
         second = await skiddle.fetch(NCL, "sk", 30, c, use_saved=True)
-    assert len(first) == len(second) == 2 and len(calls) == 1
+    assert len(first) == len(second) == 3 and len(calls) == 1
