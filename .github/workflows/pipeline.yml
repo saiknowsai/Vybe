@@ -1,0 +1,33 @@
+# Refreshes events twice a day using GitHub Actions — free on public repos, and
+# private repos get a monthly free allowance. Add the secrets under
+# Settings → Secrets and variables → Actions.
+name: Event pipeline
+
+on:
+  schedule:
+    - cron: "17 5,15 * * *"   # 05:17 and 15:17 UTC
+  workflow_dispatch: {}        # "Run workflow" button for manual runs
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: python -m app.pipeline
+        env:
+          MONGO_URL: ${{ secrets.MONGO_URL }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          TICKETMASTER_API_KEY: ${{ secrets.TICKETMASTER_API_KEY }}
+          SKIDDLE_API_KEY: ${{ secrets.SKIDDLE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CONTACT_EMAIL: ${{ secrets.CONTACT_EMAIL }}

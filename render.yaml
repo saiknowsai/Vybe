@@ -1,0 +1,21 @@
+# Render Blueprint for the Vybe backend (free web service).
+# Render → New → Blueprint → pick this repo. It asks for the values marked sync: false.
+services:
+  - type: web
+    name: vybe-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        value: vybe
+      - key: CORS_ORIGINS
+        value: https://saiknowsai.github.io,http://localhost:8081

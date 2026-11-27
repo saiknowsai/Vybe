@@ -25,6 +25,30 @@ const CATEGORIES = [
   { key: 'Outdoors', label: 'Outdoors', emoji: '🌿' },
 ];
 
+// Who can go. Events carry a minimum age ("All Ages", "Family", "14+", "18+" ...).
+const AGES = [
+  { key: 'all', label: 'All ages', emoji: '✨' },
+  { key: 'kids', label: 'Kids', emoji: '👶' },
+  { key: 'teens', label: 'Teens', emoji: '🧒' },
+  { key: 'adults', label: '18+ only', emoji: '🍸' },
+];
+
+const minAge = (label?: string) => {
+  const n = parseInt((label || '').replace(/[^0-9]/g, ''), 10);
+  return Number.isNaN(n) ? 0 : n;
+};
+
+const ageMatches = (age: string, label?: string) => {
+  const m = minAge(label);
+  if (age === 'kids') return m <= 11;
+  if (age === 'teens') return m <= 16;
+  if (age === 'adults') return m >= 18;
+  return true;
+};
+
+const defaultAge = (ageGroup?: string) =>
+  ageGroup === 'family' ? 'kids' : ageGroup === 'under18' ? 'teens' : 'all';
+
 const BUDGETS = [
   { key: 'any', label: 'Any Price' },
   { key: 'free', label: 'Free' },
@@ -45,13 +69,14 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [category, setCategory] = useState('All');
   const [budget, setBudget] = useState('any');
+  const [age, setAge] = useState(() => defaultAge(profile?.ageGroup));
   const [mode, setMode] = useState<'discover' | 'book'>('discover');
   const [showCityPicker, setShowCityPicker] = useState(false);
   const [citySearch, setCitySearch] = useState('');
-  const [aiSource, setAiSource] = useState<'ai_generated' | 'cached' | 'fallback' | null>(null);
+  const [aiSource, setAiSource] = useState<'live' | 'empty' | 'ai_generated' | 'cached' | 'fallback' | null>(null);
   const [aiRefreshing, setAiRefreshing] = useState(false);
 
-  const city = profile.city || 'London';
+  const city = profile.city || 'Newcastle';
 
   // Client-side filtering for AI-fetched events
   const applyFilters = useCallback((list: Event[]) => {
@@ -59,12 +84,15 @@ export default function HomeScreen() {
     if (kidsMode) {
       filtered = filtered.filter(e => ['All Ages', 'Family'].includes(e.ageSuitability || ''));
     }
+    if (age !== 'all') {
+      filtered = filtered.filter(e => ageMatches(age, e.ageSuitability));
+    }
     if (category !== 'All') {
       filtered = filtered.filter(e => e.category === category);
     }
     if (budget !== 'any') {
       const p = (e: Event) => Number(e.price ?? 0);
-      if (budget === 'free') filtered = filtered.filter(e => p(e) === 0);
+      if (budget === 'free') filtered = filtered.filter(e => p(e) === 0 && Number((e as any).priceMax ?? 0) === 0);
       else if (budget === 'under5') filtered = filtered.filter(e => p(e) <= 5);
       else if (budget === 'under10') filtered = filtered.filter(e => p(e) <= 10);
       else if (budget === 'under20') filtered = filtered.filter(e => p(e) <= 20);
@@ -73,7 +101,7 @@ export default function HomeScreen() {
       filtered = filtered.filter(e => e.ticketUrl);
     }
     return filtered;
-  }, [kidsMode, category, budget, mode]);
+  }, [kidsMode, age, category, budget, mode]);
 
   const fetchEvents = useCallback(async (forceRefresh = false) => {
     if (forceRefresh) setRefreshing(true);
@@ -84,7 +112,7 @@ export default function HomeScreen() {
     // Helper: hit the seeded DB endpoint (instant, returns within ~200ms)
     const fetchFromDb = async (): Promise<Event[]> => {
       try {
-        const res = await fetch(`${API_URL}/api/events?city=${encodeURIComponent(city)}&limit=50`);
+        const res = await fetch(`${API_URL}/api/events?city=${encodeURIComponent(city)}&limit=500`);
         const data = await res.json();
         return Array.isArray(data) ? data : [];
       } catch {
@@ -199,7 +227,10 @@ export default function HomeScreen() {
         ))}
       </View>
 
-      {/* Category Filters */}
+      {/* Age ribbon */}
+      {!kidsMode && <FilterBar items={AGES} active={age} onSelect={setAge} testIDPrefix="age" />}
+
+      {/* Genre / category ribbon */}
       <FilterBar
         items={CATEGORIES.filter(c => kidsMode ? ['All', 'Family', 'Outdoors', 'Markets'].includes(c.key) : true)}
         active={category}
@@ -223,7 +254,7 @@ export default function HomeScreen() {
           </Text>
         </TouchableOpacity>
         <Text style={[styles.eventCount, { color: activeColors.textMuted }]}>
-          {displayEvents.length} events{aiRefreshing ? ' · ✨ updating' : aiSource === 'cached' ? ' · cached' : aiSource === 'ai_generated' ? ' · live ✨' : ''}
+          {displayEvents.length} events{aiRefreshing ? ' · ✨ updating' : aiSource === 'cached' ? ' · cached' : aiSource === 'live' ? ' · live ✨' : ''}
         </Text>
       </View>
 
@@ -366,7 +397,8 @@ const styles = StyleSheet.create({
   toggleRow: { flexDirection: 'row', marginHorizontal: 16, marginVertical: 8, padding: 4, borderRadius: 9999 },
   toggleBtn: { flex: 1, paddingVertical: 9, alignItems: 'center' },
   toggleText: { fontSize: 13, fontWeight: '700' },
-  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
+  // maxWidth keeps cards phone-sized on a wide browser window
+  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32, width: '100%', maxWidth: 720, alignSelf: 'center' },
   surpriseRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8, gap: 12 },
   surpriseBtn: { paddingVertical: 10, paddingHorizontal: 20 },
   surpriseBtnText: { fontWeight: '800' },

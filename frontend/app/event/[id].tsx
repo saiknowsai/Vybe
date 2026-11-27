@@ -52,6 +52,9 @@ const TabContent = ({ event, tab, colors }: { event: Event; tab: string; colors:
         {(!food.onSite?.length && !food.nearby?.length) && (
           <Text style={[styles.noInfo, { color: colors.textMuted }]}>Food information not available for this event.</Text>
         )}
+        {food.credit && (
+          <Text style={[styles.creditText, { color: colors.textMuted }]}>Nearby places: {food.credit}</Text>
+        )}
       </View>
     );
   }
@@ -85,6 +88,9 @@ const TabContent = ({ event, tab, colors }: { event: Event; tab: string; colors:
         {(!parking.carParks?.length && !parking.publicTransport?.length) && (
           <Text style={[styles.noInfo, { color: colors.textMuted }]}>Parking information not available.</Text>
         )}
+        {parking.credit && (
+          <Text style={[styles.creditText, { color: colors.textMuted }]}>Map data: {parking.credit}</Text>
+        )}
       </View>
     );
   }
@@ -113,6 +119,9 @@ const TabContent = ({ event, tab, colors }: { event: Event; tab: string; colors:
         ))}
         {a.details && (
           <Text style={[styles.accessDetails, { color: colors.textMuted }]}>{a.details}</Text>
+        )}
+        {a.credit && (
+          <Text style={[styles.creditText, { color: colors.textMuted }]}>Map data: {a.credit}</Text>
         )}
       </View>
     );
@@ -564,6 +573,7 @@ export default function EventDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  creditText: { fontSize: 11, marginTop: 12 },
   safe: { flex: 1 },
   heroContainer: { position: 'relative' },
   heroImage: { width: '100%', height: 260 },

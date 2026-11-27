@@ -26,7 +26,7 @@ const DEFAULT_PROFILE: UserProfile = {
   username: '',
   displayName: '',
   avatarIndex: 0,
-  city: 'London',
+  city: 'Newcastle',
   bio: '',
   ageGroup: 'adult',
   interests: [],

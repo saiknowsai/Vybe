@@ -18,14 +18,14 @@ export default function MapScreen() {
 
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
-  const city = profile.city || 'London';
+  const city = profile.city || 'Newcastle';
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
     try {
       // GET /api/events returns ALL events for the city — seeded + any AI events
       // already in the DB. No new AI generation is triggered from the map view.
-      const res = await fetch(`${API_URL}/api/events?city=${encodeURIComponent(city)}&limit=100`);
+      const res = await fetch(`${API_URL}/api/events?city=${encodeURIComponent(city)}&limit=500`);
       const data = await res.json();
       setEvents(Array.isArray(data) ? data : []);
     } catch {
