@@ -31,7 +31,8 @@ async def main(argv=None) -> int:
         print(f"Unknown city in {args.city}", file=sys.stderr)
         return 2
     settings, db = get_settings(), get_db()
-    await ensure_indexes(db)
+    if not args.dry_run:  # a dry run never touches the database
+        await ensure_indexes(db)
     failed = False
     for city in cities:
         summary = await run_city(city, db, settings, tuple(args.sources), dry_run=args.dry_run)

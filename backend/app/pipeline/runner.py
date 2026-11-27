@@ -99,7 +99,8 @@ async def run_city(city: City, db, settings: Settings, sources: tuple[str, ...] 
         jobs.append(run("skiddle", skiddle.fetch(
             city, settings.skiddle_api_key, settings.lookahead_days, http)))
     if "claude_web" in sources:
-        left = await claude_searches_left(db, settings)
+        left = (settings.claude_max_searches_per_city if dry_run
+                else await claude_searches_left(db, settings))
         cap = min(settings.claude_max_searches_per_city, left)
         if cap == 0 and settings.anthropic_api_key:
             summary["errors"]["claude_web"] = "monthly search budget used up"
